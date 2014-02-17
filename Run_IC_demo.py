@@ -11,31 +11,40 @@ import matplotlib
 matplotlib.rcParams['keymap.yscale'] = ''
 import matplotlib.pylab as plt
 import matplotlib.image as mpimg
+from matplotlib.pyplot import figure, show, cm
 from matplotlib.widgets import LassoSelector, Slider
 from matplotlib.path import Path
 from scipy import sparse
 
 from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
 
-import featgen
+#import featgen
 
 #img_orig=mpimg.imread('8068.jpg')
 #img_orig=mpimg.imread('299091.jpg')
+
 img_orig=mpimg.imread('198023.jpg')
+Xmat = np.loadtxt('features_198023.txt')
+Xmat = np.nan_to_num(Xmat)
+
 #img_orig[:,:,1]=0
 #img_orig[:,:,2]=0
 #featgen.create_features(img_orig[:,:,0], 9, 1, 1, 8, 1, 1)
 #foo
 img=img_orig.copy()
-print img.shape, img.dtype
-Xmat = np.loadtxt('features_198023.txt')
-print Xmat
-Xmat = np.nan_to_num(Xmat)
+#print img.shape, img.dtype
+#print Xmat
 #Xmat = Xmat[:, 2:]
-print Xmat
-print Xmat.shape
+#print Xmat
+#print Xmat.shape
+
+pointrange = np.arange(img.shape[0]*img.shape[1])
+rows, cols = np.unravel_index(pointrange, (img.shape[0], img.shape[1]))
+coords_to_ind = np.vstack([np.hstack([pointrange.reshape(img.shape[0], img.shape[1]), -1 * np.ones((img.shape[0], 1))]), -1 * np.ones((1, img.shape[1]+1))]).astype(int)
+pcoll = np.vstack([cols, rows]).T
 #Xmat = np.array(img.copy(), dtype = np.int64)
 #Xmat = Xmat.reshape((img.shape[0]*img.shape[1],img.shape[2]))
+#Xmat = np.hstack([Xmat, pcoll])
 classcount = 2
 
 rpool = {}
@@ -57,12 +66,12 @@ plt.ion()
 #plt.plot([1,2],[3,4],'r^')
 
 mmc.train()
-print mmc.resource_pool
+#print mmc.resource_pool
 
 mmc.working_set = None
 mmc.wsc = None
 
-axcolor = 'lightgoldenrodyellow'
+#axcolor = 'lightgoldenrodyellow'
 
 
 class SelectFromCollection(object):
@@ -91,7 +100,8 @@ class SelectFromCollection(object):
         self.lasso.connect_event('key_press_event', self.onkeypressed)
         #self.lasso.connect_event('button_release_event', self.onrelease)
         self.ind = []
-        self.slider_axis = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor, visible = False)
+        self.slider_axis = plt.axes([0.25, 0.1, 0.65, 0.03], visible = False)
+        self.slider_axis2 = plt.axes([0.25, 0.07, 0.65, 0.03], visible = False)
         #self.in_selection_slider = Slider(self.slider_axis, 'Fraction', 0., 30.0, valinit=f0)
         #    #fig.canvas.draw_idle()
         #self.in_selection_slider.on_changed(sliderupdate)
@@ -99,10 +109,19 @@ class SelectFromCollection(object):
         self.in_selection_slider = None
     
     def newSlider(self):
+        #print 'newslider'
         nozeros = np.nonzero(self.mmc.classvec_ws)[0]
         self.slider_axis.cla()
         del self.slider_axis
-        self.slider_axis = plt.axes([0.25, 0.1, 0.65, 0.03], axisbg=axcolor)
+        del self.slider_axis2
+        self.slider_axis = plt.axes([0.25, 0.1, 0.65, 0.03])
+        self.slider_axis2 = plt.axes([0.25, 0.07, 0.65, 0.03])
+        steepness_vector = mmc.compute_steepness_vector()
+        X = [steepness_vector, steepness_vector]
+        #right = left+width
+        #self.slider_axis2.imshow(X, interpolation='bicubic', cmap=plt.get_cmap("Blues"), alpha=1)
+        self.slider_axis2.imshow(X, cmap=plt.get_cmap("Blues"))
+        self.slider_axis2.set_aspect('auto')
         del self.in_selection_slider
         self.in_selection_slider = None
         self.in_selection_slider = Slider(self.slider_axis, 'Fraction', 0., len(mmc.working_set), valinit=len(nozeros))
@@ -118,19 +137,12 @@ class SelectFromCollection(object):
             else: return
             print val, nonzeroc, claims
             self.claims = claims
-            #cProfile.run("foo()")
-            #'''
-            #rows, cols = [], []
-            '''
-            for i in range(claims):
-                steepestdir = mmc.claim_a_point(newclazz)
-                #col, row = self.collection[steepestdir]
-                #print steepestdir, row, col
-                #rows.append(row)
-                #cols.append(col)'''
             mmc.claim_n_points(claims, newclazz)
+            steepness_vector = mmc.compute_steepness_vector()
+            X = [steepness_vector, steepness_vector]
+            self.slider_axis2.imshow(X, cmap=plt.get_cmap("Blues"))
+            self.slider_axis2.set_aspect('auto')
             self.recolor()
-            #'''
             self.prevnewclazz = newclazz
         self.in_selection_slider.on_changed(sliderupdate)
         self.redrawline()
@@ -205,10 +217,10 @@ class SelectFromCollection(object):
             mmc.claim_all_points_in_working_set(newclazz)
             #col_row = self.collection[mmc.working_set]
             self.recolor()
-        #if event.key == 'c':
-        #    changecount = mmc.cyclic_descent_in_working_set()
-        #    print changecount
-        #    self.recolor()
+        if event.key == 'c':
+            changecount = mmc.cyclic_descent_in_working_set()
+            print changecount
+            self.recolor()
         if event.key == 'l':
             self.lockedset = self.lockedset | set(self.ind)
             newws = list(set(self.ind) - self.lockedset)
@@ -218,6 +230,7 @@ class SelectFromCollection(object):
             self.lockedset = self.lockedset - set(self.ind)
             newws = list(set(self.ind) - self.lockedset)
             self.mmc.new_working_set(newws)
+        self.newSlider()
     
     def recolor(self):
         oneclazz = np.nonzero(self.mmc.classvec)[0]
@@ -257,12 +270,6 @@ class SelectFromCollection(object):
             self.lasso.canvas.draw_idle()
         plt.draw()
 
-
-pointrange = np.arange(img.shape[0]*img.shape[1])
-bar, baz = np.unravel_index(pointrange, (img.shape[0], img.shape[1]))
-coords_to_ind = np.vstack([np.hstack([pointrange.reshape(img.shape[0], img.shape[1]), -1 * np.ones((img.shape[0], 1))]), -1 * np.ones((1, img.shape[1]+1))]).astype(int)
-print 'ooo', coords_to_ind.shape
-pcoll = np.vstack([baz, bar]).T
 
 def ravel_index(pos, shape):
     res = 0
