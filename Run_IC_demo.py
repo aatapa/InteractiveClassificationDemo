@@ -1,6 +1,7 @@
 
 import cProfile
 import random as pyrandom
+pyrandom.seed(100)
 import sys
 import time
 
@@ -57,7 +58,7 @@ kwargs['bias'] = bias
 kwargs['gamma'] = 2. ** (-17.)
 kwargs['regparam'] = 2. ** (1.)
 kwargs['number_of_clusters'] = classcount
-kwargs['basis_vectors'] = pyrandom.sample(range(Xmat.shape[0]), 100)
+kwargs['basis_vectors'] = Xmat[pyrandom.sample(range(Xmat.shape[0]), 100)]
 #print kwargs['basis_vectors']
 
 mmc = InteractiveRlsClassifier.createLearner(**kwargs)
