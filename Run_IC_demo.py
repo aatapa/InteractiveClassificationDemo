@@ -51,8 +51,8 @@ classcount = 2
 kwargs = {}
 bias = 0.
 
-kwargs['train_features'] = Xmat
-kwargs['train_labels'] = np.zeros((Xmat.shape[0]), dtype = np.int32)
+kwargs['X'] = Xmat
+kwargs['Y'] = np.zeros((Xmat.shape[0]), dtype = np.int32)
 kwargs['kernel'] = 'GaussianKernel'
 kwargs['bias'] = bias
 kwargs['gamma'] = 2. ** (-17.)
@@ -61,7 +61,7 @@ kwargs['number_of_clusters'] = classcount
 kwargs['basis_vectors'] = Xmat[pyrandom.sample(range(Xmat.shape[0]), 100)]
 #print kwargs['basis_vectors']
 
-mmc = InteractiveRlsClassifier.createLearner(**kwargs)
+mmc = InteractiveRlsClassifier(**kwargs)
 
 plt.ion()
 
@@ -150,7 +150,7 @@ class SelectFromCollection(object):
             self.mmc.new_working_set(newws)
             self.lasso.line.set_visible(False)
         if event.key == 'c':
-            changecount = mmc.cyclic_descent_in_working_set()
+            changecount = mmc.cyclic_descent_in_working_set(10000)
             print 'Performed ', changecount, 'cyclic descent steps'
         if event.key == 'l':
             print 'Locked the class labels of selected points'

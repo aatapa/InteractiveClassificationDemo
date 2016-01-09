@@ -36,8 +36,8 @@ classcount = 2
 kwargs = {}
 bias = 1.
 
-kwargs['train_features'] = Xmat
-kwargs['train_labels'] = np.zeros((Xmat.shape[0]), dtype = np.int32)
+kwargs['X'] = Xmat
+kwargs['Y'] = np.zeros((Xmat.shape[0]), dtype = np.int32)
 kwargs['kernel'] = 'GaussianKernel'
 #kwargs['kernel'] = 'LinearKernel'
 kwargs['bias'] = bias
@@ -48,7 +48,7 @@ kwargs['number_of_clusters'] = classcount
 #kwargs['basis_vectors'] = Xmat[pyrandom.sample(range(Xmat.shape[0]), 100)]
 #print kwargs['basis_vectors']
 
-mmc = InteractiveRlsClassifier.createLearner(**kwargs)
+mmc = InteractiveRlsClassifier(**kwargs)
 
 #foo = mmc.svecs
 #print foo
