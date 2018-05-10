@@ -26,81 +26,90 @@ from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
 
 img_orig=mpimg.imread('198023.jpg')
 Xmat = np.loadtxt('features_198023.txt')
-
 Xmat = np.nan_to_num(Xmat)
 
 #img_orig[:,:,1]=0
 #img_orig[:,:,2]=0
 #featgen.create_features(img_orig[:,:,0], 9, 1, 1, 8, 1, 1)
-#foo
-img=img_orig.copy()
 
-pointrange = np.arange(img.shape[0]*img.shape[1])
+img = img_orig.copy()
+
+#Generate pcoll, an array consisting of the (x,y) coords of all points in the image
+pointrange = np.arange(img.shape[0] * img.shape[1])
 rows, cols = np.unravel_index(pointrange, (img.shape[0], img.shape[1]))
 coords_to_ind = np.vstack([np.hstack([pointrange.reshape(img.shape[0], img.shape[1]), -1 * np.ones((img.shape[0], 1))]), -1 * np.ones((1, img.shape[1]+1))]).astype(int)
 pcoll = np.vstack([cols, rows]).T
-#Xmat = np.array(img.copy(), dtype = np.int64)
-#Xmat = Xmat.reshape((img.shape[0]*img.shape[1],img.shape[2]))
+
+#Ensure that the image has as many points as the feature file
+assert pcoll.shape[0] == Xmat.shape[0]
+
+#Uncomment this if coordinates are used as features. STRONG EFFECT!
 #Xmat = np.hstack([Xmat, pcoll])
-classcount = 2
 
+#Create an interactive classifier object
 kwargs = {}
-bias = 0.
-
 kwargs['X'] = Xmat
 kwargs['Y'] = np.zeros((Xmat.shape[0]), dtype = np.int32)
 kwargs['kernel'] = 'GaussianKernel'
-kwargs['bias'] = bias
+kwargs['bias'] = 0.
 kwargs['gamma'] = 2. ** (-17.)
 kwargs['regparam'] = 2. ** (1.)
-kwargs['number_of_clusters'] = classcount
+kwargs['number_of_clusters'] = 2
 kwargs['basis_vectors'] = Xmat[pyrandom.sample(range(Xmat.shape[0]), 100)]
-#print(kwargs['basis_vectors'])
-
 mmc = InteractiveRlsClassifier(**kwargs)
 
-plt.ion()
-
-mmc.train()
-
-mmc.working_set = None
-mmc.wsc = None
 
 
 
 class SelectFromCollection(object):
     
-    def __init__(self, ax, collection, mmc, img):
-        self.imdata = plt.gca().imshow(img)
-        plt.setp(ax.get_yticklabels(), visible=False)
-        ax.yaxis.set_tick_params(size = 0)
-        plt.setp(ax.get_xticklabels(), visible=False)
-        ax.xaxis.set_tick_params(size=0)
+    """Interactive RLS classifier interface for image segmentation
+
+    Parameters
+    ----------
+    fig : matplotlib.figure.Figure
+        The Figure object on which the interface is drawn.
         
+    mmc : rlscore.learner.interactive_rls_classifier.InteractiveRlsClassifier
+        Interactive RLS classifier object
+        
+    img : numpy.array
+        Array consisting of image data
+        
+    collection : numpy.array, shape = [n_pixels, 2]
+        array consisting of the (x,y) coordinates of all pixels in the image
+    """
+    
+    def __init__(self, fig, mmc, img, collection):
+        #ax = fig.add_subplot(111)
+        ax = fig.add_axes([0.1,0.1,0.8,0.8])
+        self.imdata = ax.imshow(img)
+        ax.set_yticklabels([])
+        ax.yaxis.set_tick_params(size = 0)
+        ax.set_xticklabels([])
+        ax.xaxis.set_tick_params(size = 0)
+        
+        self.mmc = mmc
         self.img = img
         self.collection = collection
-        self.mmc = mmc
         
-        self.xys = collection
-        self.Npts = len(self.xys)
-        
+        self.selectedset = set([])
         self.lockedset = set([])
         
-        self.lasso = LassoSelector(ax, onselect=self.onselect)
+        self.lasso = LassoSelector(ax, onselect = self.onselect)
         self.lasso.connect_event('key_press_event', self.onkeypressed)
-        self.ind = []
         newws = list(set(range(len(self.collection))) - self.lockedset)
-        self.mmc.new_working_set(newws)
+        #self.mmc.new_working_set(newws)
         self.lasso.line.set_visible(False)
         
-        self.slider_axis = plt.axes([0.25, 0.06, 0.65, 0.02])
-        self.objfun_display_axis = plt.axes([0.25, 0.96, 0.65, 0.02])
-        self.objfun_display_axis.imshow(mmc.compute_steepness_vector()[np.newaxis, :], cmap=plt.get_cmap("Oranges"))
-        self.objfun_display_axis.set_aspect('auto')
-        plt.setp(self.objfun_display_axis.get_yticklabels(), visible=False)
-        self.objfun_display_axis.yaxis.set_tick_params(size=0)
+        self.slider_axis = fig.add_axes([0.2, 0.06, 0.6, 0.02])
+        self.in_selection_slider = Slider(self.slider_axis,
+                                          'Fraction slider',
+                                          0.,
+                                          1,
+                                          #valinit = len(np.nonzero(self.mmc.classvec_ws)[0]) / len(mmc.working_set))
+                                          valinit = 0)
         
-        self.in_selection_slider = Slider(self.slider_axis, 'Fraction slider', 0., 1, valinit=len(np.nonzero(self.mmc.classvec_ws)[0]) / len(mmc.working_set))
         def sliderupdate(val):
             val = int(val * len(mmc.working_set))
             nonzeroc = len(np.nonzero(self.mmc.classvec_ws)[0])
@@ -115,14 +124,21 @@ class SelectFromCollection(object):
             self.claims = claims
             mmc.claim_n_points(claims, newclazz)
             self.redrawall()
+        
         self.in_selection_slider.on_changed(sliderupdate)
+        
+        self.objfun_display_axis = fig.add_axes([0.1, 0.96, 0.8, 0.02])
+        self.objfun_display_axis.imshow(mmc.compute_steepness_vector()[np.newaxis, :], cmap = plt.get_cmap("Oranges"))
+        self.objfun_display_axis.set_aspect('auto')
+        self.objfun_display_axis.set_yticklabels([])
+        self.objfun_display_axis.yaxis.set_tick_params(size = 0)
     
     def onselect(self, verts):
         print('onselect')
         self.path = Path(verts)
-        self.ind = np.nonzero(self.path.contains_points(self.xys))[0]
-        print('Selected ' + str(len(self.ind)) + ' points')
-        newws = list(set(self.ind) - self.lockedset)
+        self.selectedset = set(np.nonzero(self.path.contains_points(self.collection))[0])
+        print('Selected ' + str(len(self.selectedset)) + ' points')
+        newws = list(self.selectedset - self.lockedset)
         self.mmc.new_working_set(newws)
         self.redrawall()
     
@@ -146,13 +162,13 @@ class SelectFromCollection(object):
             print('Performed ', changecount, 'cyclic descent steps')
         if event.key == 'l':
             print('Locked the class labels of selected points')
-            self.lockedset = self.lockedset | set(self.ind)
-            newws = list(set(self.ind) - self.lockedset)
+            self.lockedset = self.lockedset | self.selectedset
+            newws = list(self.selectedset - self.lockedset)
             self.mmc.new_working_set(newws)
         if event.key == 'u':
             print('Unlocked the selected points')
-            self.lockedset = self.lockedset - set(self.ind)
-            newws = list(set(self.ind) - self.lockedset)
+            self.lockedset = self.lockedset - self.selectedset
+            newws = list(self.selectedset - self.lockedset)
             self.mmc.new_working_set(newws)
         self.redrawall()
     
@@ -197,7 +213,7 @@ def print_instructions():
     print()
 
 
-selector = SelectFromCollection(plt.gca(), pcoll, mmc, img)
+selector = SelectFromCollection(plt.figure(), mmc, img, pcoll)
 
 plt.draw()
        
