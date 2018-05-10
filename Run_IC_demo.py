@@ -15,24 +15,12 @@ from matplotlib.path import Path
 
 from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
 
-#import featgen
 
-#img_orig=mpimg.imread('8068.jpg')
-#img_orig=mpimg.imread('299091.jpg')
-
-#img_orig=mpimg.imread('IMG_7459_osakuva.png')
-#Xmat = np.loadtxt('features_IMG_7459_osakuva.txt')
-
-
-img_orig=mpimg.imread('198023.jpg')
+#Load image file and previously created features
+img = mpimg.imread('198023.jpg')
+#featgen.create_features(img[:,:,0], 9, 1, 1, 8, 1, 1)
 Xmat = np.loadtxt('features_198023.txt')
 Xmat = np.nan_to_num(Xmat)
-
-#img_orig[:,:,1]=0
-#img_orig[:,:,2]=0
-#featgen.create_features(img_orig[:,:,0], 9, 1, 1, 8, 1, 1)
-
-img = img_orig.copy()
 
 #Generate pcoll, an array consisting of the (x,y) coords of all points in the image
 pointrange = np.arange(img.shape[0] * img.shape[1])
@@ -77,39 +65,38 @@ class SelectFromCollection(object):
         Array consisting of image data
         
     collection : numpy.array, shape = [n_pixels, 2]
-        array consisting of the (x,y) coordinates of all pixels in the image
+        array consisting of the (x,y) coordinates of all usable pixels in the image
     """
     
     def __init__(self, fig, mmc, img, collection):
-        #ax = fig.add_subplot(111)
+        
+        #Initialize the main axis
         ax = fig.add_axes([0.1,0.1,0.8,0.8])
-        self.imdata = ax.imshow(img)
         ax.set_yticklabels([])
         ax.yaxis.set_tick_params(size = 0)
         ax.set_xticklabels([])
         ax.xaxis.set_tick_params(size = 0)
+        self.imdata = ax.imshow(img)
+        
+        #Initialize LassoSelector on the main axis
+        self.lasso = LassoSelector(ax, onselect = self.onselect)
+        self.lasso.connect_event('key_press_event', self.onkeypressed)
+        self.lasso.line.set_visible(False)
         
         self.mmc = mmc
         self.img = img
+        self.img_orig = img.copy()
         self.collection = collection
-        
         self.selectedset = set([])
         self.lockedset = set([])
         
-        self.lasso = LassoSelector(ax, onselect = self.onselect)
-        self.lasso.connect_event('key_press_event', self.onkeypressed)
-        newws = list(set(range(len(self.collection))) - self.lockedset)
-        #self.mmc.new_working_set(newws)
-        self.lasso.line.set_visible(False)
-        
+        #Initialize the fraction slider
         self.slider_axis = fig.add_axes([0.2, 0.06, 0.6, 0.02])
         self.in_selection_slider = Slider(self.slider_axis,
                                           'Fraction slider',
                                           0.,
                                           1,
-                                          #valinit = len(np.nonzero(self.mmc.classvec_ws)[0]) / len(mmc.working_set))
-                                          valinit = 0)
-        
+                                          valinit = len(np.nonzero(self.mmc.classvec_ws)[0]) / len(mmc.working_set))
         def sliderupdate(val):
             val = int(val * len(mmc.working_set))
             nonzeroc = len(np.nonzero(self.mmc.classvec_ws)[0])
@@ -124,9 +111,9 @@ class SelectFromCollection(object):
             self.claims = claims
             mmc.claim_n_points(claims, newclazz)
             self.redrawall()
-        
         self.in_selection_slider.on_changed(sliderupdate)
         
+        #Initialize the display for the RLS objective funtion
         self.objfun_display_axis = fig.add_axes([0.1, 0.96, 0.8, 0.02])
         self.objfun_display_axis.imshow(mmc.compute_steepness_vector()[np.newaxis, :], cmap = plt.get_cmap("Oranges"))
         self.objfun_display_axis.set_aspect('auto')
@@ -134,7 +121,7 @@ class SelectFromCollection(object):
         self.objfun_display_axis.yaxis.set_tick_params(size = 0)
     
     def onselect(self, verts):
-        print('onselect')
+        #Select a new working set
         self.path = Path(verts)
         self.selectedset = set(np.nonzero(self.path.contains_points(self.collection))[0])
         print('Selected ' + str(len(self.selectedset)) + ' points')
@@ -173,27 +160,31 @@ class SelectFromCollection(object):
         self.redrawall()
     
     def redrawall(self):
+        #Color all class one labeled pixels red 
         oneclazz = np.nonzero(self.mmc.classvec)[0]
         col_row = self.collection[oneclazz]
         rowcs, colcs = col_row[:, 1], col_row[:, 0]
-        #self.img[rowcs, colcs, :] = img_orig[rowcs, colcs, :] + 128
-        #self.img[rowcs, colcs, :] = 128
         self.img[rowcs, colcs, :] = 0
         self.img[rowcs, colcs, 0] = 255
+        
+        #Return the original color of the class zero labeled pixels 
         zeroclazz = np.nonzero(self.mmc.classvec - 1)[0]
         col_row = self.collection[zeroclazz]
         rowcs, colcs = col_row[:, 1], col_row[:, 0]
-        self.img[rowcs, colcs, :] = img_orig[rowcs, colcs, :]
+        self.img[rowcs, colcs, :] = self.img_orig[rowcs, colcs, :]
         self.imdata.set_data(self.img)
         
+        #Update the slider position according to labeling of the current working set
         sliderval = 0
         if len(mmc.working_set) > 0:
             sliderval = len(np.nonzero(self.mmc.classvec_ws)[0]) / len(mmc.working_set)
         self.in_selection_slider.set_val(sliderval)
         
+        #Update the RLS objective function display
         self.objfun_display_axis.imshow(mmc.compute_steepness_vector()[np.newaxis, :], cmap=plt.get_cmap("Oranges"))
         self.objfun_display_axis.set_aspect('auto')
         
+        #Final stuff
         self.lasso.canvas.draw_idle()
         plt.draw()
         print_instructions()
