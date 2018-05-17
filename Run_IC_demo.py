@@ -15,18 +15,30 @@ from matplotlib.path import Path
 
 from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
 
+def create_grid(rc, cc, ws):
+    pointrange = np.arange(rc * cc)
+    rg = int(rc / (2 * ws + 1))
+    cg = int(cc / (2 * ws + 1))
+    gridpointrange = np.arange(rg * cg)
+    rows, cols = np.unravel_index(gridpointrange, (rg, cg))
+    rows, cols = rows * (2 * ws + 1) + ws, cols * (2 * ws + 1) + ws
+    pcoll = np.vstack([cols, rows]).T
+    incinds = pointrange.reshape((rc, cc))[rows, cols]
+    return pcoll, incinds
 
 #Load image file and previously created features
 img = mpimg.imread('198023.jpg')
+
+windowsize = 5 #Set this value to 1 in order to include all pixels
+#Generate pcoll, an array consisting of the (x,y) coords of all points in the image
+pcoll, incinds = create_grid(img.shape[0], img.shape[1], windowsize) 
+
 #featgen.create_features(img[:,:,0], 9, 1, 1, 8, 1, 1)
 Xmat = np.loadtxt('features_198023.txt')
 Xmat = np.nan_to_num(Xmat)
 
-#Generate pcoll, an array consisting of the (x,y) coords of all points in the image
-pointrange = np.arange(img.shape[0] * img.shape[1])
-rows, cols = np.unravel_index(pointrange, (img.shape[0], img.shape[1]))
-coords_to_ind = np.vstack([np.hstack([pointrange.reshape(img.shape[0], img.shape[1]), -1 * np.ones((img.shape[0], 1))]), -1 * np.ones((1, img.shape[1]+1))]).astype(int)
-pcoll = np.vstack([cols, rows]).T
+#Comment this if the feature file consists of grid points features only instead of all points
+Xmat = Xmat[incinds]
 
 #Ensure that the image has as many points as the feature file
 assert pcoll.shape[0] == Xmat.shape[0]
@@ -68,7 +80,7 @@ class SelectFromCollection(object):
         array consisting of the (x,y) coordinates of all usable pixels in the image
     """
     
-    def __init__(self, fig, mmc, img, collection):
+    def __init__(self, fig, mmc, img, collection, windowsize = 0):
         
         #Initialize the main axis
         ax = fig.add_axes([0.1,0.1,0.8,0.8])
@@ -89,6 +101,7 @@ class SelectFromCollection(object):
         self.collection = collection
         self.selectedset = set([])
         self.lockedset = set([])
+        self.windowsize = windowsize
         
         #Initialize the fraction slider
         self.slider_axis = fig.add_axes([0.2, 0.06, 0.6, 0.02])
@@ -164,14 +177,18 @@ class SelectFromCollection(object):
         oneclazz = np.nonzero(self.mmc.classvec)[0]
         col_row = self.collection[oneclazz]
         rowcs, colcs = col_row[:, 1], col_row[:, 0]
-        self.img[rowcs, colcs, :] = 0
-        self.img[rowcs, colcs, 0] = 255
+        red = np.array([255, 0, 0])
+        for i in range(-self.windowsize, self.windowsize + 1):
+            for j in range(-self.windowsize, self.windowsize + 1):
+                self.img[rowcs+i, colcs+j, :] = red
         
         #Return the original color of the class zero labeled pixels 
         zeroclazz = np.nonzero(self.mmc.classvec - 1)[0]
         col_row = self.collection[zeroclazz]
         rowcs, colcs = col_row[:, 1], col_row[:, 0]
-        self.img[rowcs, colcs, :] = self.img_orig[rowcs, colcs, :]
+        for i in range(-self.windowsize, self.windowsize + 1):
+            for j in range(-self.windowsize, self.windowsize + 1):
+                self.img[rowcs+i, colcs+j, :] = self.img_orig[rowcs+i, colcs+j, :]
         self.imdata.set_data(self.img)
         
         #Update the slider position according to labeling of the current working set
@@ -204,7 +221,7 @@ def print_instructions():
     print()
 
 
-selector = SelectFromCollection(plt.figure(), mmc, img, pcoll)
+selector = SelectFromCollection(plt.figure(), mmc, img, pcoll, windowsize = windowsize)
 
 plt.draw()
        
