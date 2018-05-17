@@ -29,7 +29,7 @@ def create_grid(rc, cc, ws):
 #Load image file and previously created features
 img = mpimg.imread('198023.jpg')
 
-windowsize = 5 #Set this value to 1 in order to include all pixels
+windowsize = 5 #Set this value to 0 in order to include all pixels
 #Generate pcoll, an array consisting of the (x,y) coords of all points in the image
 pcoll, incinds = create_grid(img.shape[0], img.shape[1], windowsize) 
 
