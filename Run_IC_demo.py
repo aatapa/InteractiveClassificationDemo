@@ -15,15 +15,38 @@ from matplotlib.path import Path
 
 from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
 
-def create_grid(rc, cc, ws):
-    pointrange = np.arange(rc * cc)
-    rg = int(rc / (2 * ws + 1))
-    cg = int(cc / (2 * ws + 1))
+
+def create_grid(num_of_rows, num_of_cols, ws):
+    
+    """Convenience function for creating a grid of points for an image of size num_of_rows * num_of_cols.
+
+    Parameters
+    ----------
+    num_of_rows : int
+        Number of rows in the original image
+        
+    num_of_cols : int
+        Number of columns in the original image
+        
+    ws : int
+        Determines the size of a window around grid points (2 * windowsize + 1) and accordingly the size of the grid
+    
+    Returns
+    -------
+    pcoll : numpy.array
+        array containing the (x,y) coordinates of the grid points
+    
+    incinds : list
+        list containing the indices of the grid points relative to the indices of all points.
+    """
+    pointrange = np.arange(num_of_rows * num_of_cols)
+    rg = int(num_of_rows / (2 * ws + 1))
+    cg = int(num_of_cols / (2 * ws + 1))
     gridpointrange = np.arange(rg * cg)
     rows, cols = np.unravel_index(gridpointrange, (rg, cg))
     rows, cols = rows * (2 * ws + 1) + ws, cols * (2 * ws + 1) + ws
     pcoll = np.vstack([cols, rows]).T
-    incinds = pointrange.reshape((rc, cc))[rows, cols]
+    incinds = pointrange.reshape((num_of_rows, num_of_cols))[rows, cols]
     return pcoll, incinds
 
 #Load image file and previously created features
@@ -78,6 +101,9 @@ class SelectFromCollection(object):
         
     collection : numpy.array, shape = [n_pixels, 2]
         array consisting of the (x,y) coordinates of all usable pixels in the image
+    
+    windowsize : int
+        Determines the size of a window around grid points (2 * windowsize + 1) 
     """
     
     def __init__(self, fig, mmc, img, collection, windowsize = 0):
