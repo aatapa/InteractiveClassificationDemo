@@ -14,7 +14,7 @@ from matplotlib.widgets import LassoSelector, Slider
 from matplotlib.path import Path
 
 from rlscore.learner.interactive_rls_classifier import InteractiveRlsClassifier
-
+from rlscore.measure import auc
 
 def create_grid(num_of_rows, num_of_cols, ws):
     
@@ -50,7 +50,7 @@ def create_grid(num_of_rows, num_of_cols, ws):
     return pcoll, incinds
 
 #Load image file and previously created features
-img = mpimg.imread('198023.jpg')
+img = mpimg.imread('198023.jpg').copy()
 
 windowsize = 5 #Set this value to 0 in order to include all pixels
 #Generate pcoll, an array consisting of the (x,y) coords of all points in the image
@@ -196,6 +196,10 @@ class SelectFromCollection(object):
             self.lockedset = self.lockedset - self.selectedset
             newws = list(self.selectedset - self.lockedset)
             self.mmc.new_working_set(newws)
+        if event.key == 'p':
+            print('Compute predictions and AUC on data')
+            preds = self.mmc.predict(Xmat)
+            print(auc(mmc.Y[:, 0], preds[:, 0]))
         self.redrawall()
     
     def redrawall(self):
@@ -244,6 +248,7 @@ def print_instructions():
     print('Press l to lock all selected points to their current classes (e.g. they can not be claimed)')
     print('Press u to unlock all selected points after which they can be claimed again')
     print('Press c to perform a cyclic descent in the selection')
+    print('Press p to compute predictions and AUC on data')
     print()
 
 
